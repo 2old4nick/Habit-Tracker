@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#EEF1F5;--surface:#fff;--ink:#17212B;--muted:#66717E;--line:#D9DFE7;--accent:#2F4BDB;--accent-ink:#fff;--soft:#E3E8FB;--err:#B3261E}
+@media (prefers-color-scheme:dark){:root{--bg:#10151C;--surface:#19212B;--ink:#E8EDF3;--muted:#909BA8;--line:#2B3644;--accent:#7C93FF;--accent-ink:#10151C;--soft:#25304A;--err:#FF8A80}}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font-family:"Bricolage Grotesque",system-ui,-apple-system,"Segoe UI",sans-serif;line-height:1.45;padding:16px 16px 40px}
+main{max-width:560px;margin:0 auto}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible,input:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+[hidden]{display:none!important}
+.tabs{display:flex;gap:4px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:4px;margin-bottom:20px}
+.tabs button{flex:1;border:0;background:none;padding:10px;border-radius:9px;font-weight:600;color:var(--muted)}
+.tabs button[aria-selected=true]{background:var(--accent);color:var(--accent-ink)}
+.nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px}
+.nav h1{font-size:1.7rem;font-weight:800;margin:0;letter-spacing:-.02em;text-align:center;flex:1}
+.nav small{display:block;font-size:.9rem;font-weight:400;color:var(--muted);letter-spacing:0}
+.arrow{width:44px;height:44px;border-radius:50%;border:1px solid var(--line);background:var(--surface);font-size:1.2rem}
+.progress{display:flex;gap:6px;margin:16px 0 6px}
+.progress i{flex:1;height:10px;border-radius:5px;background:var(--line)}
+.progress i.on{background:var(--accent)}
+.count{color:var(--muted);font-size:.95rem;margin:0 0 18px;text-align:center}
+.row{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin-bottom:10px;display:flex;align-items:center;gap:14px}
+.row .name{flex:1;min-width:0}
+.row .name b{display:block;font-weight:600}
+.row .name span{font-size:.85rem;color:var(--muted)}
+.bar{height:5px;background:var(--line);border-radius:3px;margin-top:8px;overflow:hidden}
+.bar div{height:100%;background:var(--accent);border-radius:3px;transition:width .2s}
+.check{width:44px;height:44px;border-radius:50%;border:2px solid var(--line);background:none;font-size:1.3rem;line-height:1;color:var(--accent-ink)}
+.check[aria-pressed=true]{background:var(--accent);border-color:var(--accent)}
+.stepper{display:flex;align-items:center;gap:8px}
+.stepper button{width:38px;height:38px;border-radius:10px;border:1px solid var(--line);background:var(--bg);font-size:1.2rem}
+.stepper output{min-width:64px;text-align:center;font-weight:800;font-size:1.15rem;font-variant-numeric:tabular-nums}
+.stepper output small{font-weight:400;color:var(--muted);font-size:.8rem;margin-left:2px}
+.seg{display:flex;gap:4px;margin:14px 0 20px}
+.seg button{flex:1;padding:9px;border-radius:10px;border:1px solid var(--line);background:var(--surface);font-weight:600}
+.seg button[aria-pressed=true]{background:var(--soft);border-color:var(--accent);color:var(--accent)}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:12px}
+.card h2{font-size:1.05rem;margin:0;font-weight:600;display:flex;justify-content:space-between;gap:10px}
+.card h2 em{font-style:normal;color:var(--accent);font-weight:800}
+.card p{margin:2px 0 12px;font-size:.88rem;color:var(--muted)}
+.grid{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
+.grid .wd{font-size:.7rem;color:var(--muted);text-align:center}
+.cell{aspect-ratio:1;border-radius:6px;background:var(--line);display:flex;align-items:center;justify-content:center;font-size:.7rem;color:var(--ink)}
+.cell.blank{background:none}
+.cell.future{opacity:.35}
+.cell.full{color:var(--accent-ink)}
+.login{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:22px;margin-top:12vh}
+.login h1{margin:0 0 16px;font-size:1.5rem;font-weight:800}
+.login label{display:block;font-size:.9rem;color:var(--muted);margin-bottom:12px}
+.login input{display:block;width:100%;margin-top:4px;padding:11px 12px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font:inherit}
+.primary{width:100%;padding:12px;border:0;border-radius:10px;background:var(--accent);color:var(--accent-ink);font-weight:600}
+.msg{color:var(--err);font-size:.9rem;min-height:1.3em;margin:8px 0 0}
+.foot{display:flex;justify-content:center;margin-top:24px}
+.link{background:none;border:0;color:var(--muted);text-decoration:underline;font-size:.9rem}
+.empty{text-align:center;color:var(--muted);padding:30px 0}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<main>
+  <!-- Login -->
+  <section id="login" class="login" hidden>
+    <h1>Anmelden</h1>
+    <label>E-Mail<input id="email" type="email" autocomplete="username"></label>
+    <label>Passwort<input id="pw" type="password" autocomplete="current-password"></label>
+    <button class="primary" id="loginBtn">Anmelden</button>
+    <p class="msg" id="loginMsg" role="alert"></p>
+  </section>
+
+  <!-- App (erst nach Login sichtbar) -->
+  <div id="app" hidden>
+    <div class="tabs" role="tablist">
+      <button role="tab" id="t-day" aria-selected="true">Tag</button>
+      <button role="tab" id="t-stats" aria-selected="false">Auswertung</button>
+    </div>
+    <section id="view"></section>
+    <p class="msg" id="appMsg" role="alert" style="text-align:center"></p>
+    <div class="foot"><button class="link" id="logout">Abmelden</button></div>
+  </div>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script>
+/* ===== Konfiguration: nur Projekt-URL und Publishable Key (nie den service_role-Key!) ===== */
+const SUPABASE_URL = 'https://fsbvxrlctthzcaxmrgqj.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_XrgK0YFnfvWRx1b_TwxQ8g_ROxkaQ9b';
+
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let habits = [];          // aus hab_gewohnheiten
+const data = {};          // data['YYYY-MM-DD'][gewohnheit_id] = wert
+const loadedMonths = new Set();
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const iso = d => d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+const addDays = (d,n) => { const x = new Date(d); x.setDate(x.getDate()+n); return x; };
+const today = new Date(); today.setHours(12,0,0,0);
+const fmt = (d,o) => d.toLocaleDateString('de-DE', o);
+const num = n => Number(n).toLocaleString('de-DE', {maximumFractionDigits:2});
+
+const isCheck = h => h.typ === 'checkbox';
+const val = (k,id) => (data[k] && Number(data[k][id])) || 0;
+const done = (h,k) => isCheck(h) ? val(k,h.id) >= 1 : val(k,h.id) >= Number(h.ziel || 1);
+const ratio = (h,k) => isCheck(h) ? (val(k,h.id) >= 1 ? 1 : 0) : Math.min(val(k,h.id) / Number(h.ziel || 1), 1);
+
+function setMsg(text){ $('appMsg').textContent = text || ''; }
+
+/* ===== Daten laden ===== */
+async function loadHabits(){
+  const { data:rows, error } = await sb.from('hab_gewohnheiten').select('*').eq('aktiv', true).order('sortierung');
+  if (error) { setMsg('Gewohnheiten konnten nicht geladen werden: ' + error.message); return; }
+  habits = rows || [];
+}
+
+async function loadMonth(y, m){            // m = 0..11
+  const key = y + '-' + m;
+  if (loadedMonths.has(key)) return;
+  const von = iso(new Date(y, m, 1, 12)), bis = iso(new Date(y, m+1, 0, 12));
+  const { data:rows, error } = await sb.from('hab_eintraege').select('gewohnheit_id,datum,wert').gte('datum', von).lte('datum', bis);
+  if (error) { setMsg('Einträge konnten nicht geladen werden: ' + error.message); return; }
+  (rows || []).forEach(r => { (data[r.datum] = data[r.datum] || {})[r.gewohnheit_id] = Number(r.wert); });
+  loadedMonths.add(key);
+}
+
+async function ensureLoaded(start, end){
+  const jobs = [];
+  for (let d = new Date(start.getFullYear(), start.getMonth(), 1, 12); d <= end; d = new Date(d.getFullYear(), d.getMonth()+1, 1, 12))
+    jobs.push(loadMonth(d.getFullYear(), d.getMonth()));
+  await Promise.all(jobs);
+}
+
+async function saveValue(h, k, wert){
+  (data[k] = data[k] || {})[h.id] = wert;     // sofort anzeigen
+  render();
+  const { error } = await sb.from('hab_eintraege').upsert(
+    { gewohnheit_id: h.id, datum: k, wert, aktualisiert_am: new Date().toISOString() },
+    { onConflict: 'gewohnheit_id,datum' });
+  setMsg(error ? 'Speichern fehlgeschlagen: ' + error.message : '');
+}
+
+/* ===== Ansichten ===== */
+let view = 'day', sel = new Date(today), range = 'week';
+const el = $('view');
+
+function renderDay(){
+  if (!habits.length) { el.innerHTML = '<p class="empty">Noch keine Gewohnheiten angelegt.</p>'; return; }
+  const k = iso(sel), n = habits.filter(h => done(h,k)).length, isToday = k === iso(today);
+  el.innerHTML = `
+  <div class="nav">
+    <button class="arrow" data-a="prev" aria-label="Vorheriger Tag">‹</button>
+    <h1>${isToday ? 'Heute' : fmt(sel,{weekday:'long'})}<small>${fmt(sel,{day:'numeric',month:'long',year:'numeric'})}</small></h1>
+    <button class="arrow" data-a="next" aria-label="Nächster Tag" ${isToday ? 'disabled style="opacity:.3"' : ''}>›</button>
+  </div>
+  <div class="progress" aria-hidden="true">${habits.map(h => `<i class="${done(h,k) ? 'on' : ''}"></i>`).join('')}</div>
+  <p class="count">${n} von ${habits.length} erledigt</p>
+  ${habits.map(h => isCheck(h) ? `
+    <div class="row">
+      <div class="name"><b>${esc(h.name)}</b></div>
+      <button class="check" data-a="toggle" data-id="${h.id}" aria-pressed="${done(h,k)}" aria-label="${esc(h.name)}">${done(h,k) ? '✓' : ''}</button>
+    </div>` : `
+    <div class="row">
+      <div class="name"><b>${esc(h.name)}</b><span>Ziel: ${num(h.ziel)} ${esc(h.einheit)}</span>
+        <div class="bar"><div style="width:${ratio(h,k)*100}%"></div></div></div>
+      <div class="stepper">
+        <button data-a="dec" data-id="${h.id}" aria-label="Weniger">−</button>
+        <output>${num(val(k,h.id))}<small>${esc(h.einheit)}</small></output>
+        <button data-a="inc" data-id="${h.id}" aria-label="Mehr">+</button>
+      </div>
+    </div>`).join('')}`;
+}
+
+function renderStats(){
+  let start, end, label;
+  if (range === 'week') {
+    const wd = (sel.getDay()+6)%7; start = addDays(sel,-wd); end = addDays(start,6);
+    label = fmt(start,{day:'numeric',month:'short'}) + ' – ' + fmt(end,{day:'numeric',month:'short',year:'numeric'});
+  } else {
+    start = new Date(sel.getFullYear(), sel.getMonth(), 1, 12); end = new Date(sel.getFullYear(), sel.getMonth()+1, 0, 12);
+    label = fmt(start,{month:'long',year:'numeric'});
+  }
+  const days = []; for (let d = new Date(start); d <= end; d = addDays(d,1)) days.push(new Date(d));
+  const past = days.filter(d => d <= today), lead = (start.getDay()+6)%7;
+  const wds = ['Mo','Di','Mi','Do','Fr','Sa','So'];
+  el.innerHTML = `
+  <div class="nav">
+    <button class="arrow" data-a="rprev" aria-label="Zurück">‹</button>
+    <h1 style="font-size:1.3rem">${label}</h1>
+    <button class="arrow" data-a="rnext" aria-label="Weiter">›</button>
+  </div>
+  <div class="seg">
+    <button data-a="range" data-r="week" aria-pressed="${range==='week'}">Woche</button>
+    <button data-a="range" data-r="month" aria-pressed="${range==='month'}">Monat</button>
+  </div>
+  ${habits.map(h => {
+    const hit = past.filter(d => done(h,iso(d))).length, pct = past.length ? Math.round(hit/past.length*100) : 0;
+    const sum = past.reduce((s,d) => s + val(iso(d),h.id), 0);
+    const sub = isCheck(h) ? `${hit} von ${past.length} Tagen` : `Ziel an ${hit} von ${past.length} Tagen · Ø ${num(past.length ? sum/past.length : 0)} ${esc(h.einheit)} pro Tag`;
+    return `<div class="card">
+      <h2><span>${esc(h.name)}</span><em>${pct} %</em></h2><p>${sub}</p>
+      <div class="grid">
+        ${wds.map(w => `<div class="wd">${w}</div>`).join('')}
+        ${Array(lead).fill('<div class="cell blank"></div>').join('')}
+        ${days.map(d => {
+          const k = iso(d), f = d > today, r = f ? 0 : ratio(h,k);
+          const bg = r > 0 ? `background:color-mix(in srgb,var(--accent) ${Math.round(25+r*75)}%,var(--line))` : '';
+          return `<div class="cell ${f?'future':''} ${r>.5?'full':''}" style="${bg}" title="${fmt(d,{day:'numeric',month:'long'})}">${range==='week' ? d.getDate() : ''}</div>`;
+        }).join('')}
+      </div></div>`;
+  }).join('')}`;
+}
+
+function render(){
+  $('t-day').setAttribute('aria-selected', view === 'day');
+  $('t-stats').setAttribute('aria-selected', view === 'stats');
+  view === 'day' ? renderDay() : renderStats();
+}
+
+async function refresh(){                 // erst nachladen, dann zeichnen
+  if (view === 'day') await ensureLoaded(sel, sel);
+  else {
+    const wd = (sel.getDay()+6)%7;
+    const s = range === 'week' ? addDays(sel,-wd) : new Date(sel.getFullYear(), sel.getMonth(), 1, 12);
+    const e = range === 'week' ? addDays(s,6) : new Date(sel.getFullYear(), sel.getMonth()+1, 0, 12);
+    await ensureLoaded(s, e);
+  }
+  render();
+}
+
+$('t-day').onclick = () => { view = 'day'; refresh(); };
+$('t-stats').onclick = () => { view = 'stats'; refresh(); };
+
+el.addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b || b.disabled) return;
+  const a = b.dataset.a, k = iso(sel), h = habits.find(x => x.id === b.dataset.id);
+  if (a === 'toggle') return saveValue(h, k, val(k,h.id) >= 1 ? 0 : 1);
+  if (a === 'inc') return saveValue(h, k, Math.round((val(k,h.id) + Number(h.schritt||1))*100)/100);
+  if (a === 'dec') return saveValue(h, k, Math.max(0, Math.round((val(k,h.id) - Number(h.schritt||1))*100)/100));
+  if (a === 'prev') sel = addDays(sel,-1);
+  else if (a === 'next' && k < iso(today)) sel = addDays(sel,1);
+  else if (a === 'range') range = b.dataset.r;
+  else if (a === 'rprev') sel = range === 'week' ? addDays(sel,-7) : new Date(sel.getFullYear(), sel.getMonth()-1, 1, 12);
+  else if (a === 'rnext') sel = range === 'week' ? addDays(sel,7) : new Date(sel.getFullYear(), sel.getMonth()+1, 1, 12);
+  refresh();
+});
+
+/* ===== Login / Logout ===== */
+async function showApp(){
+  $('login').hidden = true; $('app').hidden = false;
+  await loadHabits();
+  await refresh();
+}
+function showLogin(){
+  habits = []; Object.keys(data).forEach(k => delete data[k]); loadedMonths.clear();
+  el.innerHTML = ''; $('app').hidden = true; $('login').hidden = false;
+}
+
+$('loginBtn').onclick = async () => {
+  $('loginMsg').textContent = '';
+  const { error } = await sb.auth.signInWithPassword({ email: $('email').value.trim(), password: $('pw').value });
+  if (error) $('loginMsg').textContent = 'Anmeldung fehlgeschlagen: ' + error.message;
+};
+$('pw').addEventListener('keydown', e => { if (e.key === 'Enter') $('loginBtn').click(); });
+$('logout').onclick = () => sb.auth.signOut();
+
+sb.auth.onAuthStateChange((evt, session) => {
+  if (evt === 'SIGNED_OUT') showLogin();
+  else if (evt === 'SIGNED_IN' && $('app').hidden) setTimeout(showApp, 0);
+});
+sb.auth.getSession().then(({ data:{ session } }) => { session ? showApp() : showLogin(); });
+</script>
+</body>
+</html>
