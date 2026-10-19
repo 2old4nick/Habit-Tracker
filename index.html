@@ -109,9 +109,20 @@ const fmt = (d,o) => d.toLocaleDateString('de-DE', o);
 const num = n => Number(n).toLocaleString('de-DE', {maximumFractionDigits:2});
 
 const isCheck = h => h.typ === 'checkbox';
+const isMax = h => h.typ === 'zahl' && h.richtung === 'max';          // Limit: höchstens einhalten
+const has = (k,id) => !!(data[k] && data[k][id] !== undefined);         // gibt es einen Eintrag (auch 0)?
 const val = (k,id) => (data[k] && Number(data[k][id])) || 0;
-const done = (h,k) => isCheck(h) ? val(k,h.id) >= 1 : val(k,h.id) >= Number(h.ziel || 1);
-const ratio = (h,k) => isCheck(h) ? (val(k,h.id) >= 1 ? 1 : 0) : Math.min(val(k,h.id) / Number(h.ziel || 1), 1);
+const done = (h,k) => isCheck(h) ? val(k,h.id) >= 1
+  : isMax(h) ? has(k,h.id) && val(k,h.id) <= Number(h.ziel)
+  : val(k,h.id) >= Number(h.ziel || 1);
+const ratio = (h,k) => isCheck(h) ? (val(k,h.id) >= 1 ? 1 : 0)
+  : isMax(h) ? (done(h,k) ? 1 : 0)
+  : Math.min(val(k,h.id) / Number(h.ziel || 1), 1);
+const over = (h,k) => isMax(h) && has(k,h.id) && val(k,h.id) > Number(h.ziel);
+const barWidth = (h,k) => isMax(h) ? (has(k,h.id) ? Math.min(val(k,h.id) / Number(h.ziel), 1) * 100 : 0) : ratio(h,k) * 100;
+const goalText = (h,k) => isMax(h)
+  ? 'Limit: max. ' + num(h.ziel) + ' ' + (h.einheit || '') + (!has(k,h.id) ? ' · noch kein Eintrag' : over(h,k) ? ' · überschritten' : '')
+  : 'Ziel: ' + num(h.ziel) + ' ' + (h.einheit || '');
 
 function setMsg(text){ $('appMsg').textContent = text || ''; }
 
@@ -169,11 +180,11 @@ function renderDay(){
       <button class="check" data-a="toggle" data-id="${h.id}" aria-pressed="${done(h,k)}" aria-label="${esc(h.name)}">${done(h,k) ? '✓' : ''}</button>
     </div>` : `
     <div class="row">
-      <div class="name"><b>${esc(h.name)}</b><span>Ziel: ${num(h.ziel)} ${esc(h.einheit)}</span>
-        <div class="bar"><div style="width:${ratio(h,k)*100}%"></div></div></div>
+      <div class="name"><b>${esc(h.name)}</b><span>${esc(goalText(h,k))}</span>
+        <div class="bar"><div style="width:${barWidth(h,k)}%${over(h,k) ? ';background:var(--err)' : ''}"></div></div></div>
       <div class="stepper">
         <button data-a="dec" data-id="${h.id}" aria-label="Weniger">−</button>
-        <output>${num(val(k,h.id))}<small>${esc(h.einheit)}</small></output>
+        <output>${isMax(h) && !has(k,h.id) ? '–' : num(val(k,h.id))}<small>${esc(h.einheit)}</small></output>
         <button data-a="inc" data-id="${h.id}" aria-label="Mehr">+</button>
       </div>
     </div>`).join('')}`;
@@ -202,18 +213,22 @@ function renderStats(){
     <button data-a="range" data-r="month" aria-pressed="${range==='month'}">Monat</button>
   </div>
   ${habits.map(h => {
-    const hit = past.filter(d => done(h,iso(d))).length, pct = past.length ? Math.round(hit/past.length*100) : 0;
-    const sum = past.reduce((s,d) => s + val(iso(d),h.id), 0);
-    const sub = isCheck(h) ? `${hit} von ${past.length} Tagen` : `Ziel an ${hit} von ${past.length} Tagen · Ø ${num(past.length ? sum/past.length : 0)} ${esc(h.einheit)} pro Tag`;
+    const base = isMax(h) ? past.filter(d => has(iso(d),h.id)) : past;   // Limit: nur Tage mit Eintrag
+    const hit = base.filter(d => done(h,iso(d))).length, pct = base.length ? Math.round(hit/base.length*100) : 0;
+    const sum = base.reduce((s,d) => s + val(iso(d),h.id), 0), avg = base.length ? sum/base.length : 0;
+    const sub = isCheck(h) ? `${hit} von ${past.length} Tagen`
+      : isMax(h) ? (base.length ? `Limit (max. ${num(h.ziel)} ${esc(h.einheit)}) an ${hit} von ${base.length} eingetragenen Tagen eingehalten · Ø ${num(avg)} ${esc(h.einheit)}` : 'Noch keine Einträge in diesem Zeitraum')
+      : `Ziel an ${hit} von ${past.length} Tagen · Ø ${num(avg)} ${esc(h.einheit)} pro Tag`;
     return `<div class="card">
-      <h2><span>${esc(h.name)}</span><em>${pct} %</em></h2><p>${sub}</p>
+      <h2><span>${esc(h.name)}</span><em>${isMax(h) && !base.length ? '–' : pct + ' %'}</em></h2><p>${sub}</p>
       <div class="grid">
         ${wds.map(w => `<div class="wd">${w}</div>`).join('')}
         ${Array(lead).fill('<div class="cell blank"></div>').join('')}
         ${days.map(d => {
           const k = iso(d), f = d > today, r = f ? 0 : ratio(h,k);
-          const bg = r > 0 ? `background:color-mix(in srgb,var(--accent) ${Math.round(25+r*75)}%,var(--line))` : '';
-          return `<div class="cell ${f?'future':''} ${r>.5?'full':''}" style="${bg}" title="${fmt(d,{day:'numeric',month:'long'})}">${range==='week' ? d.getDate() : ''}</div>`;
+          const ov = !f && over(h,k);
+          const bg = ov ? 'background:color-mix(in srgb,var(--err) 85%,var(--line))' : r > 0 ? `background:color-mix(in srgb,var(--accent) ${Math.round(25+r*75)}%,var(--line))` : '';
+          return `<div class="cell ${f?'future':''} ${(r>.5||ov)?'full':''}" style="${bg}" title="${fmt(d,{day:'numeric',month:'long'})}">${range==='week' ? d.getDate() : ''}</div>`;
         }).join('')}
       </div></div>`;
   }).join('')}`;
@@ -244,7 +259,7 @@ el.addEventListener('click', e => {
   const a = b.dataset.a, k = iso(sel), h = habits.find(x => x.id === b.dataset.id);
   if (a === 'toggle') return saveValue(h, k, val(k,h.id) >= 1 ? 0 : 1);
   if (a === 'inc') return saveValue(h, k, Math.round((val(k,h.id) + Number(h.schritt||1))*100)/100);
-  if (a === 'dec') return saveValue(h, k, Math.max(0, Math.round((val(k,h.id) - Number(h.schritt||1))*100)/100));
+  if (a === 'dec') return saveValue(h, k, has(k,h.id) ? Math.max(0, Math.round((val(k,h.id) - Number(h.schritt||1))*100)/100) : 0);
   if (a === 'prev') sel = addDays(sel,-1);
   else if (a === 'next' && k < iso(today)) sel = addDays(sel,1);
   else if (a === 'range') range = b.dataset.r;
