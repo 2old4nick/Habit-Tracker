@@ -62,6 +62,11 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--accent);outline
 .foot{display:flex;justify-content:center;margin-top:24px}
 .link{background:none;border:0;color:var(--muted);text-decoration:underline;font-size:.9rem}
 .empty{text-align:center;color:var(--muted);padding:30px 0}
+.free{display:flex;align-items:center;gap:12px;margin-top:22px;padding:14px 16px;border:1px dashed var(--line);border-radius:14px;cursor:pointer}
+.free input{width:22px;height:22px;accent-color:var(--accent);flex:none}
+.free b{display:block;font-weight:600}
+.free small{color:var(--muted);font-size:.85rem}
+.cell.off{background:repeating-linear-gradient(45deg,var(--line),var(--line) 3px,transparent 3px,transparent 6px)}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
@@ -99,6 +104,8 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 let habits = [];          // aus hab_gewohnheiten
 const data = {};          // data['YYYY-MM-DD'][gewohnheit_id] = wert
 const loadedMonths = new Set();
+const freeDays = new Set();   // 'YYYY-MM-DD' – Tage, die nicht in die Wertung zählen
+const isFree = k => freeDays.has(k);
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -137,9 +144,14 @@ async function loadMonth(y, m){            // m = 0..11
   const key = y + '-' + m;
   if (loadedMonths.has(key)) return;
   const von = iso(new Date(y, m, 1, 12)), bis = iso(new Date(y, m+1, 0, 12));
-  const { data:rows, error } = await sb.from('hab_eintraege').select('gewohnheit_id,datum,wert').gte('datum', von).lte('datum', bis);
+  const [{ data:rows, error }, { data:frei, error:errFrei }] = await Promise.all([
+    sb.from('hab_eintraege').select('gewohnheit_id,datum,wert').gte('datum', von).lte('datum', bis),
+    sb.from('hab_freie_tage').select('datum').gte('datum', von).lte('datum', bis)
+  ]);
   if (error) { setMsg('Einträge konnten nicht geladen werden: ' + error.message); return; }
+  if (errFrei) { setMsg('Freie Tage konnten nicht geladen werden: ' + errFrei.message); return; }
   (rows || []).forEach(r => { (data[r.datum] = data[r.datum] || {})[r.gewohnheit_id] = Number(r.wert); });
+  (frei || []).forEach(r => freeDays.add(r.datum));
   loadedMonths.add(key);
 }
 
@@ -159,6 +171,16 @@ async function saveValue(h, k, wert){
   setMsg(error ? 'Speichern fehlgeschlagen: ' + error.message : '');
 }
 
+async function setFree(k, on){
+  on ? freeDays.add(k) : freeDays.delete(k);
+  render();
+  const { error } = on
+    ? await sb.from('hab_freie_tage').upsert({ datum: k }, { onConflict: 'datum' })
+    : await sb.from('hab_freie_tage').delete().eq('datum', k);
+  if (error) { on ? freeDays.delete(k) : freeDays.add(k); render(); setMsg('Speichern fehlgeschlagen: ' + error.message); }
+  else setMsg('');
+}
+
 /* ===== Ansichten ===== */
 let view = 'day', sel = new Date(today), range = 'week';
 const el = $('view');
@@ -173,7 +195,7 @@ function renderDay(){
     <button class="arrow" data-a="next" aria-label="Nächster Tag" ${isToday ? 'disabled style="opacity:.3"' : ''}>›</button>
   </div>
   <div class="progress" aria-hidden="true">${habits.map(h => `<i class="${done(h,k) ? 'on' : ''}"></i>`).join('')}</div>
-  <p class="count">${n} von ${habits.length} erledigt</p>
+  <p class="count">${isFree(k) ? 'Freier Tag – zählt nicht in der Auswertung' : n + ' von ' + habits.length + ' erledigt'}</p>
   ${habits.map(h => isCheck(h) ? `
     <div class="row">
       <div class="name"><b>${esc(h.name)}</b></div>
@@ -187,7 +209,9 @@ function renderDay(){
         <output>${isMax(h) && !has(k,h.id) ? '–' : num(val(k,h.id))}<small>${esc(h.einheit)}</small></output>
         <button data-a="inc" data-id="${h.id}" aria-label="Mehr">+</button>
       </div>
-    </div>`).join('')}`;
+    </div>`).join('')}
+  <label class="free"><input type="checkbox" data-a="free" ${isFree(k) ? 'checked' : ''}>
+    <span><b>Freier Tag</b><small>Urlaub, Off Day … – dieser Tag zählt nicht in die Auswertung</small></span></label>`;
 }
 
 function renderStats(){
@@ -200,7 +224,7 @@ function renderStats(){
     label = fmt(start,{month:'long',year:'numeric'});
   }
   const days = []; for (let d = new Date(start); d <= end; d = addDays(d,1)) days.push(new Date(d));
-  const past = days.filter(d => d <= today), lead = (start.getDay()+6)%7;
+  const past = days.filter(d => d <= today && !isFree(iso(d))), lead = (start.getDay()+6)%7;
   const wds = ['Mo','Di','Mi','Do','Fr','Sa','So'];
   el.innerHTML = `
   <div class="nav">
@@ -225,10 +249,10 @@ function renderStats(){
         ${wds.map(w => `<div class="wd">${w}</div>`).join('')}
         ${Array(lead).fill('<div class="cell blank"></div>').join('')}
         ${days.map(d => {
-          const k = iso(d), f = d > today, r = f ? 0 : ratio(h,k);
-          const ov = !f && over(h,k);
+          const k = iso(d), f = d > today, fr = isFree(k), r = (f || fr) ? 0 : ratio(h,k);
+          const ov = !f && !fr && over(h,k);
           const bg = ov ? 'background:color-mix(in srgb,var(--err) 85%,var(--line))' : r > 0 ? `background:color-mix(in srgb,var(--accent) ${Math.round(25+r*75)}%,var(--line))` : '';
-          return `<div class="cell ${f?'future':''} ${(r>.5||ov)?'full':''}" style="${bg}" title="${fmt(d,{day:'numeric',month:'long'})}">${range==='week' ? d.getDate() : ''}</div>`;
+          return `<div class="cell ${f?'future':''} ${fr?'off':''} ${(r>.5||ov)?'full':''}" style="${bg}" title="${fmt(d,{day:'numeric',month:'long'})}${fr ? ' (freier Tag)' : ''}">${range==='week' ? d.getDate() : ''}</div>`;
         }).join('')}
       </div></div>`;
   }).join('')}`;
@@ -268,6 +292,10 @@ el.addEventListener('click', e => {
   refresh();
 });
 
+el.addEventListener('change', e => {
+  if (e.target.dataset.a === 'free') setFree(iso(sel), e.target.checked);
+});
+
 /* ===== Login / Logout ===== */
 async function showApp(){
   $('login').hidden = true; $('app').hidden = false;
@@ -275,7 +303,7 @@ async function showApp(){
   await refresh();
 }
 function showLogin(){
-  habits = []; Object.keys(data).forEach(k => delete data[k]); loadedMonths.clear();
+  habits = []; Object.keys(data).forEach(k => delete data[k]); loadedMonths.clear(); freeDays.clear();
   el.innerHTML = ''; $('app').hidden = true; $('login').hidden = false;
 }
 
